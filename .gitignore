@@ -1,0 +1,9 @@
+# Installed npm packages.
+# Anyone can recreate these by running npm install.
+node_modules/
+
+# Playwright-generated test results.
+test-results/
+
+# Local Playwright MCP browser/tooling data.
+.playwright-mcp/
