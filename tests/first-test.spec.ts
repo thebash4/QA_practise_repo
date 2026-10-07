@@ -1,38 +1,23 @@
 // Import Playwright's test function and assertion function.
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/evaluation-fixtures';
+import { evaluationData } from '../test-data/evaluation-data';
+
 
 // Define a test and give it a name.
-test('training app loads successfully', async ({ page }) => {
+test('training app loads successfully', async ({ evaluationPage }) => {
 
     // Navigate to the training app's URL.
-    await page.goto('http://localhost:5173');
+    await evaluationPage.navigateToEvaluationPage();
 
     // Find the heading and verify that the user can see it.
-await expect(
-    page.getByRole('heading', { name: 'Evaluation run' })
-).toBeVisible();
+await expect(evaluationPage.evaluationRunHeading).toBeVisible();
 
 // Find the Start evaluation button and click it.
-await page.getByRole('button', { name: 'Start evaluation' }).click();
+await evaluationPage.clickStartButton();
 
-// const completetext = await page.getByText('Complete', { exact: true });
+await expect(evaluationPage.completeStatus).toBeVisible();
 
-// await expect(completetext).toBeVisible();
-
-// const Passedarea = await page.getByRole('article').filter({ hasText: 'Passed' });
-// const Result = await Passedarea.getByRole('strong').filter({ hasText: '6' });
-
-// await expect(Result).toBeVisible();
-
-const completeStatus = page.getByText('Complete', { exact: true });
-await expect(completeStatus).toBeVisible();
-
-const passedCard = page
-  .getByRole('article')
-  .filter({ hasText: 'Passed' });
-
-const passedCount = passedCard.getByRole('strong');
-
-await expect(passedCount).toHaveText('6');
+// Read the expected result from shared test data to keep this assertion reusable and maintainable.
+await expect(evaluationPage.passedCount).toHaveText(evaluationData.expectedPassedCount);
 
 });
