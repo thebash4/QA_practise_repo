@@ -9,6 +9,12 @@ from api_utils.polling import wait_for_evaluation_complete
 # Import pytest to use parameterization
 import pytest
 
+# Access environment variables
+import os
+
+# Default to the local API unless another environment is configured
+BASE_URL = os.getenv("EVALFORGE_BASE_URL", "http://localhost:3000")
+
 
 # pytest recognizes functions beginning with test_
 def test_create_evaluation():
@@ -21,7 +27,7 @@ def test_create_evaluation():
 
     # Send a POST request to create an evaluation
     response = requests.post(
-        "http://localhost:3000/api/evaluations",
+        f"{BASE_URL}/api/evaluations",
         json=payload,
         timeout=10
     )
@@ -85,7 +91,7 @@ def test_create_evaluation_missing_required_fields(payload):
 
     # Send the invalid payload to the API
     response = requests.post(
-        "http://localhost:3000/api/evaluations",
+        f"{BASE_URL}/api/evaluations",
         json=payload,
         timeout=10
     )
@@ -112,7 +118,7 @@ def test_get_evaluation_invalid_run_id():
 
     # Send a GET request using the invalid ID
     response = requests.get(
-        f"http://localhost:3000/api/evaluations/{run_id}",
+        f"{BASE_URL}/api/evaluations/{run_id}",
         timeout=10
     )
 
@@ -129,5 +135,4 @@ def test_get_evaluation_invalid_run_id():
     assert run_id in body["error"]["message"]
 
     # Verify that the correlation ID matches the response header
-    
     assert body["error"]["correlationId"] == response.headers["x-correlation-id"] 

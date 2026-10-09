@@ -1,13 +1,19 @@
 # Import the requests library to make HTTP calls
 import requests
 
+# Access environment variables
+import os
+
+# Use localhost unless another API URL is provided
+BASE_URL = os.getenv("EVALFORGE_BASE_URL", "http://localhost:3000")
+
 
 # pytest discovers functions whose names begin with test_
 def test_get_datasets():
 
     # Send an HTTP GET request to the Evaluation API
     response = requests.get(
-        "http://localhost:3000/api/datasets",
+        f"{BASE_URL}/api/datasets",
         timeout=10
     )
 

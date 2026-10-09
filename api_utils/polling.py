@@ -4,6 +4,12 @@ import time
 # Library for sending HTTP requests
 import requests
 
+# Access environment variables
+import os
+
+# Use localhost by default, or the configured API URL
+BASE_URL = os.getenv("EVALFORGE_BASE_URL", "http://localhost:3000")
+
 
 # Reusable function for waiting until an evaluation finishes
 def wait_for_evaluation_complete(run_id, timeout=30):
@@ -15,8 +21,9 @@ def wait_for_evaluation_complete(run_id, timeout=30):
     while time.monotonic() - start_time < timeout:
 
         # Retrieve the latest evaluation status
+        # Construct the evaluation endpoint using the configured base URL
         response = requests.get(
-            f"http://localhost:3000/api/evaluations/{run_id}",
+            f"{BASE_URL}/api/evaluations/{run_id}",
             timeout=10
         )
 
