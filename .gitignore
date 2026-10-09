@@ -7,3 +7,15 @@ test-results/
 
 # Local Playwright MCP browser/tooling data.
 .playwright-mcp/
+
+# Python-generated cache directories
+__pycache__/
+
+# Compiled Python files
+*.pyc
+
+# Local Python virtual environment
+.venv/
+
+# Pytest-generated cache
+.pytest_cache/
