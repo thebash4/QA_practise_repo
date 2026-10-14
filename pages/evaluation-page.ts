@@ -1,28 +1,22 @@
-import { Page, Locator } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 
 export class EvaluationPage {
-
-    // Declare what locators this Page Object has
-  
-    private page: Page;
+  // Declare what locators this Page Object has
+  private page: Page;
   startButton: Locator;
   evaluationRunHeading: Locator;
   passedCard: Locator;
-    completeStatus: Locator;
-    passedCount: Locator;
+  completeStatus: Locator;
+  passedCount: Locator;
 
   constructor(page: Page) {
-
     // Save the browser page
     this.page = page;
 
     // Create locators using that browser page
-    this.startButton =
-      this.page.getByRole('button', { name: 'Start evaluation' });
+    this.startButton = this.page.getByRole('button', { name: 'Start evaluation' });
 
-    this.evaluationRunHeading =
-      this.page.getByRole('heading', { name: 'Evaluation run' });
-  
+    this.evaluationRunHeading = this.page.getByRole('heading', { name: 'Evaluation run' });
 
     this.passedCard = this.page.getByRole('article').filter({ hasText: 'Passed' });
 
@@ -41,13 +35,12 @@ export class EvaluationPage {
     this.passedCount = this.passedCard.getByRole('strong');
   }
 
-  //methods to interact with the page
-
-    async navigateToEvaluationPage() {
-    await this.page.goto('http://localhost:5173');
+  // Methods to interact with the page
+  async navigateToEvaluationPage() {
+    await this.page.goto('/');
   }
 
-    async clickStartButton() {
+  async clickStartButton() {
     await this.startButton.click();
-  } 
+  }
 }

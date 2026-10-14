@@ -5,5 +5,30 @@ node_modules/
 # Playwright-generated test results.
 test-results/
 
+# Playwright-generated HTML report.
+playwright-report/
+
 # Local Playwright MCP browser/tooling data.
 .playwright-mcp/
+
+# Python-generated cache directories
+__pycache__/
+
+# Compiled Python files
+*.pyc
+
+# Local Python virtual environment
+.venv/
+
+# Pytest-generated cache
+.pytest_cache/
+
+# Pytest-generated test reports.
+reports/
+
+# Local editor and operating-system files.
+.DS_Store
+.vscode/
+
+# Locally generated Docker test report.
+docker-first-run-report/
