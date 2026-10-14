@@ -1,8 +1,3 @@
-# Import the library used to send HTTP requests
-from pdb import run
-
-import requests
-
 # Import our reusable polling function
 from api_utils.polling import wait_for_evaluation_complete
 
@@ -17,7 +12,7 @@ BASE_URL = os.getenv("EVALFORGE_BASE_URL", "http://localhost:3000")
 
 
 # pytest recognizes functions beginning with test_
-def test_create_evaluation():
+def test_create_evaluation(api_session):
 
     # Prepare the JSON request body
     payload = {
@@ -26,7 +21,7 @@ def test_create_evaluation():
     }
 
     # Send a POST request to create an evaluation
-    response = requests.post(
+    response = api_session.post(
         f"{BASE_URL}/api/evaluations",
         json=payload,
         timeout=10
@@ -60,7 +55,7 @@ def test_create_evaluation():
     run_id = run["id"]
 
 # Poll the API until processing completes
-    completed_run = wait_for_evaluation_complete(run_id)
+    completed_run = wait_for_evaluation_complete(api_session, run_id)
 
 # Verify the final processing status
     assert completed_run["status"] == "COMPLETE"
@@ -73,7 +68,7 @@ def test_create_evaluation():
         completed_run["passedCount"] + completed_run["failedCount"]
         == completed_run["totalScenarios"]
     )
-    
+
 
 # Verify that six individual scenario results were returned
     assert len(completed_run["results"]) == 6
@@ -87,10 +82,10 @@ def test_create_evaluation():
     {"datasetId": "order-agent-basics"},            # Missing agentId
     {}                                              # Missing both fields
 ])
-def test_create_evaluation_missing_required_fields(payload):
+def test_create_evaluation_missing_required_fields(api_session, payload):
 
     # Send the invalid payload to the API
-    response = requests.post(
+    response = api_session.post(
         f"{BASE_URL}/api/evaluations",
         json=payload,
         timeout=10
@@ -111,13 +106,13 @@ def test_create_evaluation_missing_required_fields(payload):
 #################################
 
 # Verify that requesting an unknown evaluation returns 404
-def test_get_evaluation_invalid_run_id():
+def test_get_evaluation_invalid_run_id(api_session):
 
     # Define an evaluation ID that does not exist
     run_id = "nonexistent-run-id"
 
     # Send a GET request using the invalid ID
-    response = requests.get(
+    response = api_session.get(
         f"{BASE_URL}/api/evaluations/{run_id}",
         timeout=10
     )
@@ -135,4 +130,4 @@ def test_get_evaluation_invalid_run_id():
     assert run_id in body["error"]["message"]
 
     # Verify that the correlation ID matches the response header
-    assert body["error"]["correlationId"] == response.headers["x-correlation-id"] 
+    assert body["error"]["correlationId"] == response.headers["x-correlation-id"]

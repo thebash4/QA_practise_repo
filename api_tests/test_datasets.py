@@ -1,6 +1,3 @@
-# Import the requests library to make HTTP calls
-import requests
-
 # Access environment variables
 import os
 
@@ -9,10 +6,10 @@ BASE_URL = os.getenv("EVALFORGE_BASE_URL", "http://localhost:3000")
 
 
 # pytest discovers functions whose names begin with test_
-def test_get_datasets():
+def test_get_datasets(api_session):
 
     # Send an HTTP GET request to the Evaluation API
-    response = requests.get(
+    response = api_session.get(
         f"{BASE_URL}/api/datasets",
         timeout=10
     )
@@ -32,8 +29,7 @@ def test_get_datasets():
 # Verify that at least one dataset was returned
     assert len(body["datasets"]) > 0
 
-    
-    
+
     # Get the first dataset from the list
     dataset = body["datasets"][0]
 
