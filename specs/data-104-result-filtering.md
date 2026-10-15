@@ -60,17 +60,148 @@ A controlled, source-controlled JSON dataset containing exactly 20 uniquely iden
 - Stable names, inputs, expected values, and outcomes.
 - No duplicate scenario IDs.
 
-The completed run's actual 12/8 partition must be verified before those expected IDs are used in filter assertions.
+The source-controlled template uses top-level dataset ID `data-filter-20`. At runtime, setup must clone the document and replace only the top-level dataset ID with a collision-resistant worker-specific value. Scenario IDs and all scenario content remain stable.
+
+The completed run's actual 12/8 partition must be verified before those expected IDs are used in filter assertions. Intended `pass` or `fail` naming is not sufficient evidence.
+
+#### Source-verified scenario manifest
+
+The following manifest is derived from the adjacent application's deterministic agent and evaluator source. Order notation is `id / status / createdAt`. Expected and actual notation is `tool(parameters) / outcome`. Every JSON scenario also requires the displayed stable ID, a non-empty descriptive name, the exact input, the listed `customerId` and `orders`, and the listed `expected` object.
+
+| Stable scenario ID | Input and context | Expected value stored in dataset | Source-derived actual value | Intended result |
+|---|---|---|---|---|
+| `data104-pass-01` | `Show order 101.`; `C-101`; `101 / PROCESSING / 2026-01-01T10:00:00Z` | `getOrder({orderId: "101"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-02` | `Show order 102.`; `C-102`; `102 / SHIPPED / 2026-01-02T10:00:00Z` | `getOrder({orderId: "102"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-03` | `Show order 103.`; `C-103`; `103 / DELIVERED / 2026-01-03T10:00:00Z` | `getOrder({orderId: "103"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-04` | `Show my latest order.`; `C-104`; `1041 / DELIVERED / 2026-01-01T10:00:00Z`, `1042 / SHIPPED / 2026-01-02T10:00:00Z` | `getOrder({orderId: "1042"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-05` | `Cancel order 105.`; `C-105`; `105 / PROCESSING / 2026-01-05T10:00:00Z` | `cancelOrder({orderId: "105"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-06` | `Cancel my latest order.`; `C-106`; `1061 / SHIPPED / 2026-01-01T10:00:00Z`, `1062 / PROCESSING / 2026-01-02T10:00:00Z` | `cancelOrder({orderId: "1062"}) / SUCCESS` | Same as expected | PASS |
+| `data104-pass-07` | `Cancel order 107.`; `C-107`; `107 / SHIPPED / 2026-01-07T10:00:00Z` | `cancelOrder({orderId: "107"}) / REFUSED` | Same as expected | PASS |
+| `data104-pass-08` | `Cancel order 108.`; `C-108`; `108 / DELIVERED / 2026-01-08T10:00:00Z` | `cancelOrder({orderId: "108"}) / REFUSED` | Same as expected | PASS |
+| `data104-pass-09` | `Show my latest order.`; `C-109`; no orders | `getOrders({customerId: "C-109"}) / NOT_FOUND` | Same as expected | PASS |
+| `data104-pass-10` | `Show order 999.`; `C-110`; `110 / PROCESSING / 2026-01-10T10:00:00Z` | `getOrders({customerId: "C-110"}) / NOT_FOUND` | Same as expected because explicit order `999` is absent | PASS |
+| `data104-pass-11` | `Cancel order 999.`; `C-111`; `111 / PROCESSING / 2026-01-11T10:00:00Z` | `getOrders({customerId: "C-111"}) / NOT_FOUND` | Same as expected because missing-order handling precedes cancel handling | PASS |
+| `data104-pass-12` | `Where is my latest purchase?`; `C-112`; `112 / SHIPPED / 2026-01-12T10:00:00Z` | `getOrder({orderId: "112"}) / SUCCESS` | Same as expected | PASS |
+| `data104-fail-01` | `Show order 201.`; `C-201`; `201 / PROCESSING / 2026-02-01T10:00:00Z` | `cancelOrder({orderId: "201"}) / SUCCESS` | `getOrder({orderId: "201"}) / SUCCESS` | FAIL: tool |
+| `data104-fail-02` | `Show order 202.`; `C-202`; `202 / SHIPPED / 2026-02-02T10:00:00Z` | `getOrder({orderId: "999"}) / SUCCESS` | `getOrder({orderId: "202"}) / SUCCESS` | FAIL: parameters |
+| `data104-fail-03` | `Show order 203.`; `C-203`; `203 / DELIVERED / 2026-02-03T10:00:00Z` | `getOrder({orderId: "203"}) / REFUSED` | `getOrder({orderId: "203"}) / SUCCESS` | FAIL: outcome |
+| `data104-fail-04` | `Cancel order 204.`; `C-204`; `204 / PROCESSING / 2026-02-04T10:00:00Z` | `refundOrder({orderId: "204"}) / SUCCESS` | `cancelOrder({orderId: "204"}) / SUCCESS` | FAIL: tool |
+| `data104-fail-05` | `Cancel order 205.`; `C-205`; `205 / SHIPPED / 2026-02-05T10:00:00Z` | `cancelOrder({orderId: "205"}) / SUCCESS` | `cancelOrder({orderId: "205"}) / REFUSED` | FAIL: outcome |
+| `data104-fail-06` | `Show my latest order.`; `C-206`; no orders | `getOrders({customerId: "C-WRONG"}) / NOT_FOUND` | `getOrders({customerId: "C-206"}) / NOT_FOUND` | FAIL: parameters |
+| `data104-fail-07` | `Show my latest order.`; `C-207`; `2071 / PROCESSING / 2026-02-01T10:00:00Z`, `2072 / SHIPPED / 2026-02-02T10:00:00Z` | `getOrder({orderId: "2071"}) / SUCCESS` | `getOrder({orderId: "2072"}) / SUCCESS` | FAIL: parameters |
+| `data104-fail-08` | `Cancel order 208.`; `C-208`; `208 / DELIVERED / 2026-02-08T10:00:00Z` | `getOrder({orderId: "208"}) / SUCCESS` | `cancelOrder({orderId: "208"}) / REFUSED` | FAIL: tool and outcome |
+
+Use these exact non-empty scenario names, in ID order: `Lookup processing order`, `Lookup shipped order`, `Lookup delivered order`, `Lookup latest order`, `Cancel processing order`, `Cancel latest processing order`, `Refuse shipped cancellation`, `Refuse delivered cancellation`, `No orders found`, `Explicit lookup order not found`, `Explicit cancellation order not found`, `Lookup latest purchase phrasing`, `Tool mismatch on lookup`, `Parameter mismatch on lookup`, `Outcome mismatch on lookup`, `Tool mismatch on cancellation`, `Outcome mismatch on shipped cancellation`, `Customer parameter mismatch with no orders`, `Latest-order parameter mismatch`, and `Tool and outcome mismatch on delivered cancellation`.
+
+The exact passing-ID set is `data104-pass-01` through `data104-pass-12`. The exact failing-ID set is `data104-fail-01` through `data104-fail-08`.
 
 ### DATA-ALL-PASS
 
-A deterministic evaluation with at least one result and zero failed records, used to test a valid filter with no matches.
+A source-controlled dataset with top-level template ID `data-all-pass` and one scenario:
+
+- Stable scenario ID: `data104-all-pass-01`.
+- Input: `Show order 301.`.
+- Context: customer `C-301` with order `301 / PROCESSING / 2026-03-01T10:00:00Z`.
+- Expected: `getOrder({ "orderId": "301" }) / SUCCESS`.
+- Source-derived actual: identical to expected, producing PASS.
+
+Runtime setup applies the same unique top-level dataset-ID strategy used for DATA-FILTER-20. The completed run must contain exactly the expected single passing ID and zero failed records before it is used for no-match assertions.
 
 ### Other data
 
 - A syntactically valid but nonexistent evaluation ID.
 - A unique run per worker or test flow where mutation or parallel interference is possible.
 - Controlled contract-shaped responses for loading, error, retry, refresh, and out-of-order UI scenarios.
+
+## Source-verified technical contracts
+
+These contracts were verified by source inspection of `../snorkel-training-app`. SST-2 subsequently exercised the public dataset import and evaluation lifecycle against the local application: DATA-FILTER-20 completed with 20 unique results partitioned into 12 PASS and 8 FAIL, DATA-ALL-PASS completed with 1 PASS and 0 FAIL, and both setup-validation tests passed. Filter-specific SST-3 behavior remains planned rather than implemented.
+
+Primary source evidence:
+
+- `shared/src/index.ts:4-24` — domain types and response contracts.
+- `services/dataset-service/src/index.ts:30-133` — import validation, duplicate handling, storage, and response.
+- `services/agent-service/src/index.ts:8-31` — registered agent and deterministic execution rules.
+- `services/evaluator-service/src/index.ts:8-24` — exact comparison and PASS/FAIL calculation.
+- `services/evaluation-api/src/index.ts:21-78` — import proxy and asynchronous evaluation orchestration.
+- `services/results-service/src/index.ts:9-60` — in-memory run storage, filtering, counters, and `updatedAt` changes.
+- `frontend/src/App.tsx:93-117` — default filter, request cancellation, loading/error/empty/retry states, and refresh dependencies.
+
+### Dataset import
+
+- Public import is `POST /api/datasets` with `Content-Type: application/json`. It proxies the payload unchanged to Dataset Service `POST /datasets`.
+- Success is HTTP 201 with `{ "dataset": { "id", "name", "description", "scenarioCount" } }`.
+- The exact top-level keys are `id`, `name`, `description`, and `scenarios`; unknown properties are rejected.
+- `id` is caller-assigned, non-empty, at most 128 characters, starts with an alphanumeric character, and otherwise allows letters, numbers, periods, underscores, and hyphens.
+- `name` is non-empty, `description` is a string, and `scenarios` is a non-empty array.
+- A scenario has only `id`, `name`, `input`, `context`, and `expected`. Its first three fields are non-empty strings.
+- `context` has only a non-empty `customerId` and an `orders` array. Each order has only a non-empty `id`, `status`, and `createdAt`; status is `PROCESSING`, `SHIPPED`, or `DELIVERED`; timestamps must be normalized ISO-8601 UTC values.
+- `expected` has only `tool`, `parameters`, and `outcome`. Tool is `getOrders`, `getOrder`, `cancelOrder`, or `refundOrder`; every parameter value is a string; outcome is `SUCCESS`, `REFUSED`, or `NOT_FOUND`.
+- Duplicate scenario IDs within one payload return HTTP 400 `INVALID_DATASET`. Reusing an existing dataset ID returns HTTP 409 `DATASET_ALREADY_EXISTS`.
+- Malformed JSON returns HTTP 400 `MALFORMED_JSON`; invalid documents return HTTP 400 `INVALID_DATASET`; requests over the configured limit return HTTP 413 `PAYLOAD_TOO_LARGE`.
+- Imported datasets are held in memory and have no update or delete endpoint.
+
+### Deterministic agent
+
+`deterministic-order-agent-v1` applies these rules in order:
+
+1. Lowercase the input and extract the first explicit numeric ID matching `order <digits>`.
+2. If an explicit ID exists, select the context order with that exact ID; otherwise select the order with the lexicographically greatest normalized `createdAt` timestamp.
+3. If no order is selected, return `getOrders`, `{ customerId }`, and `NOT_FOUND`. This occurs before cancel-intent handling.
+4. If the input contains `cancel` and the selected order is `PROCESSING`, return `cancelOrder`, `{ orderId }`, and `SUCCESS`.
+5. If the input contains `cancel` and the selected order is `SHIPPED` or `DELIVERED`, return `cancelOrder`, `{ orderId }`, and `REFUSED`.
+6. Otherwise return `getOrder`, `{ orderId }`, and `SUCCESS`.
+
+The generated customer response is deterministic but is not part of PASS/FAIL evaluation.
+
+### Evaluator comparison
+
+- Tool and outcome use case-sensitive exact equality.
+- Parameters are compared as sorted top-level key/value entries. Property order is ignored; any missing key, extra key, different key, or different string value fails the parameter check.
+- PASS requires all three checks—tool, parameters, and outcome—to succeed. Any failed check produces FAIL.
+- Scenario name, input, context, and generated response do not determine PASS/FAIL.
+
+### Evaluation lifecycle and filtering
+
+- Start evaluation with `POST /api/evaluations` and `{ "datasetId", "agentId" }`; success is HTTP 202 with a `Location` header and `{ "run": ... }`.
+- Processing is asynchronous and sequential. The default source delay is 500 ms per scenario unless `SCENARIO_DELAY_MS` overrides it.
+- Retrieve one run through `GET /api/evaluations/:id`. Run states are `PENDING`, `RUNNING`, `COMPLETE`, and `FAILED`.
+- `updatedAt` changes when each result is stored and whenever run status changes.
+- Public result filtering proxies to Results Service. Unknown-run validation occurs before filter validation. Successful filtering returns a new array and does not mutate the stored run.
+- Results and datasets are held in service memory. Run IDs are server-generated UUIDs. No supported run or dataset deletion endpoint exists.
+
+## SST-2 implementation architecture
+
+The minimum maintainable setup is:
+
+- `test-data/data-104-filter-20.json`: the source-controlled 20-scenario template defined above.
+- `test-data/data-104-all-pass.json`: the source-controlled one-scenario all-pass template.
+- `test-data/data-104-expectations.ts`: total counts and exact stable all/passing/failing ID arrays. It must not contain fixed run IDs or runtime dataset IDs.
+- `fixtures/data-104-fixtures.ts`: a dedicated fixture module, imported only by DATA-104 tests rather than merged into the existing global fixture index. It creates an API request context using the Evaluation API URL, imports a cloned dataset with a unique worker-specific top-level ID, starts a run, waits for completion, and exposes the verified run metadata and baseline snapshot.
+- `utils/evaluation-polling.ts`: bounded polling of `GET /api/evaluations/:id`; return on `COMPLETE`, fail immediately on `FAILED`, and report the last observed state on timeout.
+- `utils/evaluation-results.ts`: pure helpers for unique-ID validation, pass/fail partitioning, stable ID-set comparison, and normalization of documented stable result fields. Assertions remain in test files and fixture readiness checks.
+
+No new dependency, Playwright configuration, CI change, or change to `fixtures/index.ts` is required. Creating the dedicated reusable fixture and utilities requires explicit approval under `AGENTS.md`. DATA-104 filter locators and interactions are not present in the existing Page Object; those additions belong to SST-4 and require separate approval.
+
+### Mandatory completed-run readiness gate
+
+Before any SST-3, SST-4 real-backend, or SST-5 filter assertion uses DATA-FILTER-20, setup must assert all of the following:
+
+1. The run reached `COMPLETE`; a `FAILED` state fails setup immediately.
+2. `totalScenarios === 20`, `results.length === 20`, and all 20 scenario IDs are unique.
+3. `passedCount === 12` and `failedCount === 8`.
+4. The actual passing-ID set exactly equals `data104-pass-01` through `data104-pass-12`.
+5. The actual failing-ID set exactly equals `data104-fail-01` through `data104-fail-08`.
+6. The union contains no missing or unexpected ID.
+
+The all-pass fixture applies the equivalent exact-ID and zero-failure gate to `data104-all-pass-01`.
+
+### Isolation and cleanup
+
+- Clone each source-controlled dataset and generate a unique top-level dataset ID per worker/import using worker identity plus a collision-resistant suffix. Do not change stable scenario IDs.
+- Do not rely on the existing timestamp-only test ID helper for parallel isolation.
+- A completed worker-scoped run may be reused by read-only API and UI happy-path tests to avoid repeating the approximately ten-second default DATA-FILTER-20 evaluation. Tests that validate import or run creation must create their own resource.
+- Never invent or call a destructive cleanup route. Because cleanup is unsupported, retain test-created resources and rely on unique IDs; service restart clears the in-memory stores.
 
 ## Test scenarios
 
@@ -418,7 +549,7 @@ A deterministic evaluation with at least one result and zero failed records, use
   - Older data does not overwrite the refreshed state.
 - **Cleanup:** Remove controlled routes or clean the test-created run where supported.
 - **Failure conditions:** Missing refresh, wrong filter state, inconsistent count, or stale overwrite fails the scenario.
-- **Blocker:** Active states, refresh mechanism, and filter-retention behavior require clarification.
+- **Source-verified dependency:** Active states are `PENDING` and `RUNNING`; the run list polls while either exists, updates the selected run, and the details view refetches results when that run's `updatedAt` changes. The selected filter state is retained during this refetch. Runtime behavior still requires validation once the application is available.
 
 ### REG-01 — Existing dataset import and evaluation flow remains functional
 
@@ -515,42 +646,48 @@ A deterministic evaluation with at least one result and zero failed records, use
 
 ## Open questions
 
-1. Is All the initial/default UI selection?
-2. What accessible control pattern is intended for All, Passed, and Failed?
-3. What exact loading, empty, error, and retry behavior and copy are required?
-4. During a failed request, are prior results cleared, retained, or marked stale?
-5. Does Retry repeat only the failed filter request?
-6. Must the selected filter persist across refresh or navigation?
-7. Is result ordering contractual?
-8. How are duplicate `status` query parameters handled?
-9. What error fields beyond `error.code` are contractual?
-10. Is the internal endpoint directly accessible to QA?
-11. Which statuses are active, and how is `updatedAt` observed?
-12. Should the active filter remain selected after an `updatedAt` refresh?
-13. What authorization or tenant-isolation rules apply?
-14. What approved import and cleanup endpoints are available?
-15. Which browsers and viewports are release requirements?
+Source inspection resolved the default All selection, the labeled select control, loading/empty/error/retry copy, clearing of prior results during a request, retry behavior, active statuses, `updatedAt` refresh, filter retention during refresh, error envelope, import endpoint, and absence of cleanup endpoints. The following questions remain:
+
+1. Is result ordering contractual, or should tests continue comparing membership without asserting order?
+2. How must duplicate `status` query parameters behave as a product contract? The source rejects non-string parsed values, but runtime parser behavior has not been verified.
+3. Is the internal Results Service endpoint directly accessible to QA and CI?
+4. What authorization or tenant-isolation rules apply, if any?
+5. Which browsers and viewports are release requirements?
 
 ## Blockers and assumptions
 
-### Verified blockers
+### Remaining blockers
 
-- Live API and UI exploration is blocked because the local services were not running during planning.
-- No controlled 20-scenario dataset or expected ID mapping is present in this QA repository.
-- Jira's referenced application feature branch and commit are outside this QA repository.
-- Exact UI locators and state text cannot be finalized until the feature is accessible.
-- The internal endpoint and active-update behavior are not sufficiently documented for final assertions.
+- The existing Page Object does not yet expose DATA-104 filter, count, result-row, loading, empty, error, or retry interactions.
+- Direct Results Service accessibility from QA and CI remains unverified for API-08.
 
 ### Assumptions pending verification
 
-- A deterministic agent can reliably produce the required 12/8 outcome.
-- A supported non-destructive setup and cleanup mechanism exists.
 - UI transient-state tests may use route interception while core workflows use the real backend.
+- The test environment will expose the Evaluation API separately from the UI base URL.
+
+### Verified SST-2 runtime evidence
+
+- DATA-FILTER-20 completed with exactly 20 unique results: 12 PASS and 8 FAIL, matching the approved scenario-ID partitions.
+- DATA-ALL-PASS completed with exactly 1 PASS and 0 FAIL.
+- Both Playwright `@setup-validation` tests passed against the local Evaluation API, so the mandatory readiness gates have been executed successfully.
+- This evidence validates reusable test setup only; SST-3 filtering tests have not yet been implemented.
+
+## Implementation readiness assessment
+
+**Status: READY FOR FILTER TEST IMPLEMENTATION WITH DEPENDENCIES.**
+
+- **Ready from source evidence:** Dataset schema and import errors, deterministic agent outputs, exact evaluator comparison, the 12/8 dataset design, the all-pass design, public evaluation lifecycle, result-filter contract, non-mutation behavior, and the minimum fixture/utility approach are sufficiently defined to implement without guessing.
+- **Verified setup:** The controlled datasets, expectations, dedicated fixture, polling utility, result utility, and setup-validation spec are implemented. Live execution confirmed the exact 20/12/8 and 1/0 readiness gates, with both SST-2 tests passing.
+- **Environment dependency:** Future real-backend tests require the Evaluation API, Dataset Service, Agent Service, Evaluator Service, and Results Service to be running; UI scenarios additionally require the UI.
+- **Approval dependency:** Dedicated SST-2 fixtures and utilities were explicitly approved and implemented. Any future Page Object or other shared-framework changes still require approval under `AGENTS.md`.
+- **Scenario-specific dependency:** API-08 remains dependent on direct Results Service reachability from the target environment. SST-4 UI automation remains dependent on runtime locator/state confirmation and approved Page Object changes.
+- **Cleanup disposition:** Cleanup is not blocked or assumed. It is unsupported by the current application contract, so isolation uses unique test-created dataset IDs and non-destructive retention.
 
 ## Entry criteria
 
 - DATA-104 is deployed or otherwise accessible.
-- DATA-FILTER-20 and its exact expected ID partitions are available.
+- DATA-FILTER-20, DATA-ALL-PASS, and the exact expected ID partitions have been implemented from this verified design.
 - Required open questions for the selected scenarios are resolved.
 - The test environment supports isolated runs.
 - Any shared fixture, Page Object, configuration, or CI changes are separately approved.

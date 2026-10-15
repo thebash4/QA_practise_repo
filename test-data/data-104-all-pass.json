@@ -1,0 +1,19 @@
+{
+  "id": "data-all-pass",
+  "name": "DATA-ALL-PASS",
+  "description": "Deterministic DATA-104 dataset with one passing scenario",
+  "scenarios": [
+    {
+      "id": "data104-all-pass-01",
+      "name": "Lookup processing order for empty failed filter",
+      "input": "Show order 301.",
+      "context": {
+        "customerId": "C-301",
+        "orders": [
+          { "id": "301", "status": "PROCESSING", "createdAt": "2026-03-01T10:00:00Z" }
+        ]
+      },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "301" }, "outcome": "SUCCESS" }
+    }
+  ]
+}

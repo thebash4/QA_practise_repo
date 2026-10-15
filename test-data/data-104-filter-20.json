@@ -1,0 +1,165 @@
+{
+  "id": "data-filter-20",
+  "name": "DATA-FILTER-20",
+  "description": "Deterministic DATA-104 dataset with 12 passing and 8 failing evaluation scenarios",
+  "scenarios": [
+    {
+      "id": "data104-pass-01",
+      "name": "Lookup processing order",
+      "input": "Show order 101.",
+      "context": { "customerId": "C-101", "orders": [{ "id": "101", "status": "PROCESSING", "createdAt": "2026-01-01T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "101" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-02",
+      "name": "Lookup shipped order",
+      "input": "Show order 102.",
+      "context": { "customerId": "C-102", "orders": [{ "id": "102", "status": "SHIPPED", "createdAt": "2026-01-02T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "102" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-03",
+      "name": "Lookup delivered order",
+      "input": "Show order 103.",
+      "context": { "customerId": "C-103", "orders": [{ "id": "103", "status": "DELIVERED", "createdAt": "2026-01-03T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "103" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-04",
+      "name": "Lookup latest order",
+      "input": "Show my latest order.",
+      "context": {
+        "customerId": "C-104",
+        "orders": [
+          { "id": "1041", "status": "DELIVERED", "createdAt": "2026-01-01T10:00:00Z" },
+          { "id": "1042", "status": "SHIPPED", "createdAt": "2026-01-02T10:00:00Z" }
+        ]
+      },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "1042" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-05",
+      "name": "Cancel processing order",
+      "input": "Cancel order 105.",
+      "context": { "customerId": "C-105", "orders": [{ "id": "105", "status": "PROCESSING", "createdAt": "2026-01-05T10:00:00Z" }] },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "105" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-06",
+      "name": "Cancel latest processing order",
+      "input": "Cancel my latest order.",
+      "context": {
+        "customerId": "C-106",
+        "orders": [
+          { "id": "1061", "status": "SHIPPED", "createdAt": "2026-01-01T10:00:00Z" },
+          { "id": "1062", "status": "PROCESSING", "createdAt": "2026-01-02T10:00:00Z" }
+        ]
+      },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "1062" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-pass-07",
+      "name": "Refuse shipped cancellation",
+      "input": "Cancel order 107.",
+      "context": { "customerId": "C-107", "orders": [{ "id": "107", "status": "SHIPPED", "createdAt": "2026-01-07T10:00:00Z" }] },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "107" }, "outcome": "REFUSED" }
+    },
+    {
+      "id": "data104-pass-08",
+      "name": "Refuse delivered cancellation",
+      "input": "Cancel order 108.",
+      "context": { "customerId": "C-108", "orders": [{ "id": "108", "status": "DELIVERED", "createdAt": "2026-01-08T10:00:00Z" }] },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "108" }, "outcome": "REFUSED" }
+    },
+    {
+      "id": "data104-pass-09",
+      "name": "No orders found",
+      "input": "Show my latest order.",
+      "context": { "customerId": "C-109", "orders": [] },
+      "expected": { "tool": "getOrders", "parameters": { "customerId": "C-109" }, "outcome": "NOT_FOUND" }
+    },
+    {
+      "id": "data104-pass-10",
+      "name": "Explicit lookup order not found",
+      "input": "Show order 999.",
+      "context": { "customerId": "C-110", "orders": [{ "id": "110", "status": "PROCESSING", "createdAt": "2026-01-10T10:00:00Z" }] },
+      "expected": { "tool": "getOrders", "parameters": { "customerId": "C-110" }, "outcome": "NOT_FOUND" }
+    },
+    {
+      "id": "data104-pass-11",
+      "name": "Explicit cancellation order not found",
+      "input": "Cancel order 999.",
+      "context": { "customerId": "C-111", "orders": [{ "id": "111", "status": "PROCESSING", "createdAt": "2026-01-11T10:00:00Z" }] },
+      "expected": { "tool": "getOrders", "parameters": { "customerId": "C-111" }, "outcome": "NOT_FOUND" }
+    },
+    {
+      "id": "data104-pass-12",
+      "name": "Lookup latest purchase phrasing",
+      "input": "Where is my latest purchase?",
+      "context": { "customerId": "C-112", "orders": [{ "id": "112", "status": "SHIPPED", "createdAt": "2026-01-12T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "112" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-01",
+      "name": "Tool mismatch on lookup",
+      "input": "Show order 201.",
+      "context": { "customerId": "C-201", "orders": [{ "id": "201", "status": "PROCESSING", "createdAt": "2026-02-01T10:00:00Z" }] },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "201" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-02",
+      "name": "Parameter mismatch on lookup",
+      "input": "Show order 202.",
+      "context": { "customerId": "C-202", "orders": [{ "id": "202", "status": "SHIPPED", "createdAt": "2026-02-02T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "999" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-03",
+      "name": "Outcome mismatch on lookup",
+      "input": "Show order 203.",
+      "context": { "customerId": "C-203", "orders": [{ "id": "203", "status": "DELIVERED", "createdAt": "2026-02-03T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "203" }, "outcome": "REFUSED" }
+    },
+    {
+      "id": "data104-fail-04",
+      "name": "Tool mismatch on cancellation",
+      "input": "Cancel order 204.",
+      "context": { "customerId": "C-204", "orders": [{ "id": "204", "status": "PROCESSING", "createdAt": "2026-02-04T10:00:00Z" }] },
+      "expected": { "tool": "refundOrder", "parameters": { "orderId": "204" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-05",
+      "name": "Outcome mismatch on shipped cancellation",
+      "input": "Cancel order 205.",
+      "context": { "customerId": "C-205", "orders": [{ "id": "205", "status": "SHIPPED", "createdAt": "2026-02-05T10:00:00Z" }] },
+      "expected": { "tool": "cancelOrder", "parameters": { "orderId": "205" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-06",
+      "name": "Customer parameter mismatch with no orders",
+      "input": "Show my latest order.",
+      "context": { "customerId": "C-206", "orders": [] },
+      "expected": { "tool": "getOrders", "parameters": { "customerId": "C-WRONG" }, "outcome": "NOT_FOUND" }
+    },
+    {
+      "id": "data104-fail-07",
+      "name": "Latest-order parameter mismatch",
+      "input": "Show my latest order.",
+      "context": {
+        "customerId": "C-207",
+        "orders": [
+          { "id": "2071", "status": "PROCESSING", "createdAt": "2026-02-01T10:00:00Z" },
+          { "id": "2072", "status": "SHIPPED", "createdAt": "2026-02-02T10:00:00Z" }
+        ]
+      },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "2071" }, "outcome": "SUCCESS" }
+    },
+    {
+      "id": "data104-fail-08",
+      "name": "Tool and outcome mismatch on delivered cancellation",
+      "input": "Cancel order 208.",
+      "context": { "customerId": "C-208", "orders": [{ "id": "208", "status": "DELIVERED", "createdAt": "2026-02-08T10:00:00Z" }] },
+      "expected": { "tool": "getOrder", "parameters": { "orderId": "208" }, "outcome": "SUCCESS" }
+    }
+  ]
+}
