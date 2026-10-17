@@ -19,11 +19,16 @@ pipeline {
         // Tells Playwright it is running in CI, which enables one retry (see playwright.config.ts)
         CI = 'true'
 
+        // A webhook-created multibranch job can run once before Jenkins materializes parameter defaults.
+        // Resolve safe values here while preserving any choices supplied by a manual build.
+        TEST_SUITE = "${params.TEST_SUITE ?: 'setup-validation'}"
+        WORKERS = "${params.WORKERS ?: '1'}"
+
         // API address shared by Playwright API fixtures and the legacy pytest suite
-        EVALFORGE_BASE_URL = "${params.API_BASE_URL}"
+        EVALFORGE_BASE_URL = "${params.API_BASE_URL ?: 'http://localhost:3000'}"
 
         // UI address used by the health check and the EvaluationPage page object
-        APP_URL = "${params.UI_BASE_URL}"
+        APP_URL = "${params.UI_BASE_URL ?: 'http://localhost:5173'}"
 
         // Never try to open the HTML report in a browser on the build machine
         PLAYWRIGHT_HTML_OPEN = 'never'
@@ -58,7 +63,7 @@ pipeline {
 
         stage('Install legacy Python dependencies') {
             when {
-                expression { params.TEST_SUITE == 'legacy-pytest' }
+                environment name: 'TEST_SUITE', value: 'legacy-pytest'
             }
             steps {
                 // Keep the learning-only pytest stack isolated and install it only when explicitly selected.
@@ -71,7 +76,9 @@ pipeline {
 
         stage('Install Playwright dependencies') {
             when {
-                expression { params.TEST_SUITE != 'legacy-pytest' }
+                not {
+                    environment name: 'TEST_SUITE', value: 'legacy-pytest'
+                }
             }
             steps {
                 // API-only suites do not need a browser binary; UI-capable suites install Chromium.
@@ -87,7 +94,7 @@ pipeline {
 
         stage('Legacy Python API tests') {
             when {
-                expression { params.TEST_SUITE == 'legacy-pytest' }
+                environment name: 'TEST_SUITE', value: 'legacy-pytest'
             }
             steps {
                 // pytest.ini writes reports/api-results.xml and reports/api-report.html.
@@ -116,7 +123,9 @@ pipeline {
 
         stage('Playwright tests') {
             when {
-                expression { params.TEST_SUITE != 'legacy-pytest' }
+                not {
+                    environment name: 'TEST_SUITE', value: 'legacy-pytest'
+                }
             }
             steps {
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
