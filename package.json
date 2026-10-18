@@ -3,13 +3,24 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test --grep '@(smoke|regression|negative|integration)'",
+    "test:all": "playwright test --grep '@(smoke|regression|negative|integration)'",
+    "test:api": "playwright test tests/api",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:negative": "playwright test --grep @negative",
+    "test:integration": "playwright test --grep @integration",
+    "test:setup-validation": "playwright test --grep @setup-validation",
+    "test:failure-demo": "RUN_FAILURE_DEMO=true playwright test tests/retry-test.spec.ts --grep @failure-demo --workers=1",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.3"
   }
 }

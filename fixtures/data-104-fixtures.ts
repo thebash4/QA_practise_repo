@@ -7,13 +7,8 @@
  * so isolation relies on unique dataset IDs and the service's in-memory lifecycle.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  request as playwrightRequest,
-  test as base,
-  type APIRequestContext,
-  type APIResponse,
-  type WorkerInfo,
-} from '@playwright/test';
+import type { WorkerInfo } from '@playwright/test';
+import { test as apiTest, type EvaluationApi } from './api-fixtures';
 import allPassDatasetTemplate from '../test-data/data-104-all-pass.json';
 import filter20DatasetTemplate from '../test-data/data-104-filter-20.json';
 import {
@@ -25,23 +20,16 @@ import {
   DATA_104_FAILING_SCENARIO_IDS,
   DATA_104_PASSING_SCENARIO_IDS,
 } from '../test-data/data-104-expectations';
-import { pollEvaluationToCompletion } from '../utils/evaluation-polling';
 import {
   compareScenarioIds,
   findDuplicateScenarioIds,
   getScenarioIds,
   normalizeEvaluationResults,
   partitionEvaluationResults,
-  type AgentSummary,
   type DatasetImport,
-  type DatasetSummary,
   type EvaluationResult,
-  type EvaluationResultsResponse,
   type EvaluationRun,
-  type ResultFilter,
 } from '../utils/evaluation-results';
-
-const EVALUATION_API_URL = process.env.EVALFORGE_BASE_URL ?? 'http://localhost:3000';
 
 export type VerifiedEvaluationRun = {
   datasetId: string;
@@ -53,115 +41,24 @@ export type VerifiedEvaluationRun = {
 };
 
 type Data104WorkerFixtures = {
-  evaluationApi: EvaluationApi;
   data104Run: VerifiedEvaluationRun;
   allPassRun: VerifiedEvaluationRun;
 };
 
 /**
- * Wraps the public Evaluation API operations used by DATA-104 setup and API tests.
- * Methods fail with response context when a successful operation returns an unexpected status.
- */
-export class EvaluationApi {
-  constructor(readonly request: APIRequestContext) {}
-
-  async listDatasets(): Promise<DatasetSummary[]> {
-    const response = await this.request.get('/api/datasets');
-    const body = await requireJsonStatus<{ datasets: DatasetSummary[] }>(response, 200, 'list datasets');
-    return body.datasets;
-  }
-
-  async importDataset(dataset: DatasetImport): Promise<DatasetSummary> {
-    const response = await this.request.post('/api/datasets', { data: dataset });
-    const body = await requireJsonStatus<{ dataset: DatasetSummary }>(
-      response,
-      201,
-      `import dataset '${dataset.id}'`,
-    );
-
-    if (body.dataset.id !== dataset.id || body.dataset.scenarioCount !== dataset.scenarios.length) {
-      throw new Error(
-        `Import response for dataset '${dataset.id}' did not match the request: ${JSON.stringify(body.dataset)}`,
-      );
-    }
-    return body.dataset;
-  }
-
-  async listAgents(): Promise<AgentSummary[]> {
-    const response = await this.request.get('/api/agents');
-    const body = await requireJsonStatus<{ agents: AgentSummary[] }>(response, 200, 'list agents');
-    return body.agents;
-  }
-
-  async startEvaluation(datasetId: string, agentId = DATA_104_AGENT_ID): Promise<EvaluationRun> {
-    const response = await this.request.post('/api/evaluations', {
-      data: { datasetId, agentId },
-    });
-    const body = await requireJsonStatus<{ run: EvaluationRun }>(
-      response,
-      202,
-      `start evaluation for dataset '${datasetId}'`,
-    );
-
-    if (body.run.datasetId !== datasetId || body.run.agentId !== agentId) {
-      throw new Error(
-        `Created evaluation did not reference dataset '${datasetId}' and agent '${agentId}': ${JSON.stringify(body.run)}`,
-      );
-    }
-    return body.run;
-  }
-
-  async getEvaluation(runId: string): Promise<EvaluationRun> {
-    const response = await this.request.get(`/api/evaluations/${encodeURIComponent(runId)}`);
-    const body = await requireJsonStatus<{ run: EvaluationRun }>(response, 200, `get evaluation '${runId}'`);
-    return body.run;
-  }
-
-  /** Returns the raw results response so contract tests can inspect error statuses and bodies. */
-  getResultsResponse(runId: string, status?: string): Promise<APIResponse> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    return this.request.get(`/api/evaluations/${encodeURIComponent(runId)}/results${query}`);
-  }
-
-  /** Parses a result envelope after enforcing HTTP 200 for an optional supported status filter. */
-  async getResults(runId: string, status?: ResultFilter): Promise<EvaluationResultsResponse> {
-    const response = await this.getResultsResponse(runId, status);
-    return requireJsonStatus<EvaluationResultsResponse>(
-      response,
-      200,
-      `get ${status ?? 'all'} results for evaluation '${runId}'`,
-    );
-  }
-
-  /** Polls a run through the bounded shared polling utility until it completes or fails. */
-  pollToCompletion(runId: string): Promise<EvaluationRun> {
-    return pollEvaluationToCompletion(this.request, runId);
-  }
-}
-
-/**
  * DATA-104 Playwright test instance with worker-scoped API and verified-run fixtures.
  * Worker scope avoids repeating the roughly ten-second baseline evaluation for every read-only test.
  */
-export const test = base.extend<{}, Data104WorkerFixtures>({
-  evaluationApi: [
-    async ({}, use) => {
-      const request = await playwrightRequest.newContext({ baseURL: EVALUATION_API_URL });
-      await use(new EvaluationApi(request));
-      await request.dispose();
-    },
-    { scope: 'worker' },
-  ],
-
+export const test = apiTest.extend<{}, Data104WorkerFixtures>({
   data104Run: [
     async ({ evaluationApi }, use, workerInfo) => {
       const dataset = prepareDataset(
-        filter20DatasetTemplate as DatasetImport,
+        filter20DatasetTemplate as unknown as DatasetImport,
         DATA_104_ALL_SCENARIO_IDS,
         workerInfo,
       );
       await evaluationApi.importDataset(dataset);
-      const createdRun = await evaluationApi.startEvaluation(dataset.id);
+      const createdRun = await evaluationApi.startEvaluation(dataset.id, DATA_104_AGENT_ID);
       const completedRun = await evaluationApi.pollToCompletion(createdRun.id);
       const verifiedRun = verifyCompletedRun(
         completedRun,
@@ -178,12 +75,12 @@ export const test = base.extend<{}, Data104WorkerFixtures>({
   allPassRun: [
     async ({ evaluationApi }, use, workerInfo) => {
       const dataset = prepareDataset(
-        allPassDatasetTemplate as DatasetImport,
+        allPassDatasetTemplate as unknown as DatasetImport,
         DATA_104_ALL_PASS_SCENARIO_IDS,
         workerInfo,
       );
       await evaluationApi.importDataset(dataset);
-      const createdRun = await evaluationApi.startEvaluation(dataset.id);
+      const createdRun = await evaluationApi.startEvaluation(dataset.id, DATA_104_AGENT_ID);
       const completedRun = await evaluationApi.pollToCompletion(createdRun.id);
       const verifiedRun = verifyCompletedRun(
         completedRun,
@@ -307,22 +204,4 @@ function findDuplicateStrings(values: readonly string[]): string[] {
     seen.add(value);
   }
   return [...duplicates].sort();
-}
-
-async function requireJsonStatus<T>(response: APIResponse, expectedStatus: number, action: string): Promise<T> {
-  const body = await readResponseBody(response);
-  if (response.status() !== expectedStatus) {
-    throw new Error(
-      `Failed to ${action}: expected HTTP ${expectedStatus}, received ${response.status()} ${JSON.stringify(body)}`,
-    );
-  }
-  return body as T;
-}
-
-async function readResponseBody(response: APIResponse): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return await response.text();
-  }
 }

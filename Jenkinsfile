@@ -1,176 +1,145 @@
-// Runs a selected EvalForge Playwright suite or the legacy pytest suite on the local Jenkins agent.
-// Prerequisite: the services required by the selected suite must already be running on this Mac.
+// Parameterized EvalForge Playwright pipeline for a Jenkins agent with access to the test environment.
 pipeline {
     agent any
 
     parameters {
-        // Local defaults work when Jenkins and the training application run on the same Mac.
-        string(name: 'API_BASE_URL', defaultValue: 'http://localhost:3000', description: 'Reachable EvalForge API URL')
+        string(name: 'API_BASE_URL', defaultValue: 'http://localhost:3000', description: 'Reachable EvalForge Evaluation API URL')
         string(name: 'UI_BASE_URL', defaultValue: 'http://localhost:5173', description: 'Reachable EvalForge UI URL')
         choice(name: 'TEST_SUITE',
-               choices: ['setup-validation', 'smoke', 'api', 'all', 'legacy-pytest'],
-               description: 'Test suite to execute; legacy-pytest is excluded from Playwright runs')
+               choices: ['smoke', 'regression', 'negative', 'integration', 'all', 'legacy-pytest'],
+               description: 'Tagged Playwright suite, or the preserved learning-only pytest suite')
         choice(name: 'WORKERS',
-               choices: ['1', '3', '6'],
-               description: 'Parallel workers for Playwright suites; ignored by legacy-pytest')
+               choices: ['1', '2', '4', '6'],
+               description: 'Playwright worker count; ignored by legacy-pytest')
+        choice(name: 'RETRIES',
+               choices: ['0', '1', '2'],
+               description: 'Retries for failed Playwright tests; ignored by legacy-pytest')
     }
 
     environment {
-        // Tells Playwright it is running in CI, which enables one retry (see playwright.config.ts)
         CI = 'true'
 
-        // A webhook-created multibranch job can run once before Jenkins materializes parameter defaults.
-        // Resolve safe values here while preserving any choices supplied by a manual build.
-        TEST_SUITE = "${params.TEST_SUITE ?: 'setup-validation'}"
+        // Webhook-created multibranch jobs can run before Jenkins materializes parameter defaults.
+        TEST_SUITE = "${params.TEST_SUITE ?: 'smoke'}"
         WORKERS = "${params.WORKERS ?: '1'}"
-
-        // API address shared by Playwright API fixtures and the legacy pytest suite
+        RETRIES = "${params.RETRIES ?: '0'}"
         EVALFORGE_BASE_URL = "${params.API_BASE_URL ?: 'http://localhost:3000'}"
-
-        // UI address used by the health check and the EvaluationPage page object
         APP_URL = "${params.UI_BASE_URL ?: 'http://localhost:5173'}"
 
-        // Never try to open the HTML report in a browser on the build machine
         PLAYWRIGHT_HTML_OPEN = 'never'
-
-        // Where the Playwright JUnit reporter writes its results
-        PLAYWRIGHT_JUNIT_OUTPUT_NAME = 'reports/ui-results.xml'
+        PLAYWRIGHT_HTML_OUTPUT_DIR = 'playwright-report'
+        PLAYWRIGHT_JUNIT_OUTPUT_NAME = 'reports/playwright-results.xml'
     }
 
     options {
-        // Stop runaway builds instead of letting them hang forever
-        timeout(time: 20, unit: 'MINUTES')
-
-        // Keep the last 20 builds so old reports do not fill the disk
+        skipDefaultCheckout(true)
+        timeout(time: 25, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
     stages {
-        stage('Check app is running') {
+        stage('Checkout') {
             steps {
-                // Every supported suite needs the public Evaluation API; only UI-capable suites need the frontend.
+                checkout scm
+            }
+        }
+
+        stage('Validate Parameters') {
+            steps {
+                // Keep command construction limited to values defined by explicit allowlists.
+                sh '''
+                    case "$TEST_SUITE" in
+                        smoke|regression|negative|integration|all|legacy-pytest) ;;
+                        *) echo "Unsupported TEST_SUITE: $TEST_SUITE"; exit 2 ;;
+                    esac
+                    case "$WORKERS" in 1|2|4|6) ;; *) echo "Unsupported WORKERS: $WORKERS"; exit 2 ;; esac
+                    case "$RETRIES" in 0|1|2) ;; *) echo "Unsupported RETRIES: $RETRIES"; exit 2 ;; esac
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    if [ "$TEST_SUITE" = 'legacy-pytest' ]; then
+                        python3 -m venv .venv
+                        .venv/bin/pip install --quiet -r requirements.txt
+                    else
+                        npm ci
+
+                        # Only suites containing browser tests need the Chromium binary.
+                        if [ "$TEST_SUITE" = 'smoke' ] || [ "$TEST_SUITE" = 'regression' ] || [ "$TEST_SUITE" = 'all' ]; then
+                            npx playwright install chromium
+                        fi
+                    fi
+                '''
+            }
+        }
+
+        stage('Verify Test Environment') {
+            steps {
+                // Services are externally managed; verify reachability instead of starting unknown processes.
                 sh '''
                     curl -fsS -o /dev/null "$EVALFORGE_BASE_URL/health" \
-                        || { echo "EvalForge API is not reachable at $EVALFORGE_BASE_URL. Start the app with 'npm run dev'."; exit 1; }
+                        || { echo "EvalForge API is not reachable at $EVALFORGE_BASE_URL."; exit 1; }
 
-                    if [ "$TEST_SUITE" = 'smoke' ] || [ "$TEST_SUITE" = 'all' ]; then
+                    if [ "$TEST_SUITE" = 'smoke' ] || [ "$TEST_SUITE" = 'regression' ] || [ "$TEST_SUITE" = 'all' ]; then
                         curl -fsS -o /dev/null "$APP_URL" \
-                            || { echo "EvalForge UI is not reachable at $APP_URL. Start the app with 'npm run dev'."; exit 1; }
+                            || { echo "EvalForge UI is not reachable at $APP_URL."; exit 1; }
                     fi
                 '''
             }
         }
 
-        stage('Install legacy Python dependencies') {
-            when {
-                environment name: 'TEST_SUITE', value: 'legacy-pytest'
-            }
+        stage('Run Tests') {
             steps {
-                // Keep the learning-only pytest stack isolated and install it only when explicitly selected.
-                sh '''
-                    python3 -m venv .venv
-                    .venv/bin/pip install --quiet -r requirements.txt
-                '''
-            }
-        }
-
-        stage('Install Playwright dependencies') {
-            when {
-                not {
-                    environment name: 'TEST_SUITE', value: 'legacy-pytest'
-                }
-            }
-            steps {
-                // API-only suites do not need a browser binary; UI-capable suites install Chromium.
-                sh '''
-                    npm ci
-
-                    if [ "$TEST_SUITE" = 'smoke' ] || [ "$TEST_SUITE" = 'all' ]; then
-                        npx playwright install chromium
-                    fi
-                '''
-            }
-        }
-
-        stage('Legacy Python API tests') {
-            when {
-                environment name: 'TEST_SUITE', value: 'legacy-pytest'
-            }
-            steps {
-                // pytest.ini writes reports/api-results.xml and reports/api-report.html.
+                // Mark failures while still allowing the post block to publish diagnostic evidence.
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                     sh '''
-                        set +e
-                        COLLECTION_OUTPUT=$(.venv/bin/pytest --collect-only -q api_tests 2>&1)
-                        COLLECTION_STATUS=$?
-                        set -e
-                        printf '%s\n' "$COLLECTION_OUTPUT"
-
-                        if [ "$COLLECTION_STATUS" -eq 5 ]; then
-                            echo 'No legacy pytest tests were collected; failing the build instead of reporting a false success.'
-                            exit 1
+                        if [ "$TEST_SUITE" = 'legacy-pytest' ]; then
+                            set +e
+                            COLLECTION_OUTPUT=$(.venv/bin/pytest --collect-only -q api_tests 2>&1)
+                            COLLECTION_STATUS=$?
+                            set -e
+                            printf '%s\n' "$COLLECTION_OUTPUT"
+                            if [ "$COLLECTION_STATUS" -eq 5 ]; then
+                                echo 'No legacy pytest tests were collected.'
+                                exit 1
+                            fi
+                            if [ "$COLLECTION_STATUS" -ne 0 ]; then
+                                exit "$COLLECTION_STATUS"
+                            fi
+                            .venv/bin/pytest api_tests
+                            exit $?
                         fi
-                        if [ "$COLLECTION_STATUS" -ne 0 ]; then
-                            echo 'Legacy pytest collection failed.'
-                            exit "$COLLECTION_STATUS"
-                        fi
 
-                        .venv/bin/pytest api_tests
-                    '''
-                }
-            }
-        }
-
-        stage('Playwright tests') {
-            when {
-                not {
-                    environment name: 'TEST_SUITE', value: 'legacy-pytest'
-                }
-            }
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    sh '''
-                        # Convert the controlled choice into fixed Playwright arguments without eval.
                         case "$TEST_SUITE" in
-                            setup-validation)
-                                set -- --grep '@setup-validation'
-                                ;;
-                            smoke)
-                                set -- --grep '@smoke'
-                                ;;
-                            api)
-                                set -- tests/api/
-                                ;;
-                            all)
-                                set --
-                                ;;
-                            *)
-                                echo "Unsupported Playwright suite: $TEST_SUITE"
-                                exit 2
-                                ;;
+                            smoke)       set -- --grep '@smoke' ;;
+                            regression)  set -- --grep '@regression' ;;
+                            negative)    set -- --grep '@negative' ;;
+                            integration) set -- --grep '@integration' ;;
+                            all)         set -- --grep '@(smoke|regression|negative|integration)' ;;
                         esac
 
-                        # Discovery makes an empty tag or directory selection an explicit build failure.
+                        # Discovery prevents an empty selection from producing a misleading green build.
                         set +e
                         DISCOVERY_OUTPUT=$(npx playwright test "$@" --list 2>&1)
                         DISCOVERY_STATUS=$?
                         set -e
                         printf '%s\n' "$DISCOVERY_OUTPUT"
-
                         if [ "$DISCOVERY_STATUS" -ne 0 ]; then
-                            echo "Playwright discovery failed or no tests matched TEST_SUITE=$TEST_SUITE."
+                            echo "Playwright discovery failed for TEST_SUITE=$TEST_SUITE."
                             exit "$DISCOVERY_STATUS"
                         fi
 
                         DISCOVERED_TESTS=$(printf '%s\n' "$DISCOVERY_OUTPUT" | awk '/^Total: [0-9]+ test/ { print $2 }' | tail -1)
                         if [ -z "$DISCOVERED_TESTS" ] || [ "$DISCOVERED_TESTS" -eq 0 ]; then
-                            echo "No Playwright tests matched TEST_SUITE=$TEST_SUITE; failing the build instead of reporting a false success."
+                            echo "No Playwright tests matched TEST_SUITE=$TEST_SUITE."
                             exit 1
                         fi
 
-                        echo "Running $DISCOVERED_TESTS Playwright tests for TEST_SUITE=$TEST_SUITE with WORKERS=$WORKERS."
-                        # list = readable console log, junit = Jenkins results, html = playwright-report/
-                        npx playwright test "$@" --workers="$WORKERS" --reporter=list,junit,html
+                        echo "Running $DISCOVERED_TESTS tests: suite=$TEST_SUITE workers=$WORKERS retries=$RETRIES"
+                        npx playwright test "$@" --workers="$WORKERS" --retries="$RETRIES"
                     '''
                 }
             }
@@ -179,10 +148,8 @@ pipeline {
 
     post {
         always {
-            // Show pass/fail results and trends on the build page
+            // JUnit powers Jenkins test history; HTML, screenshots, and traces remain downloadable artifacts.
             junit testResults: 'reports/*.xml', allowEmptyResults: true
-
-            // Keep the HTML reports, screenshots, and traces so failures can be investigated later
             archiveArtifacts artifacts: 'reports/**, playwright-report/**, test-results/**',
                              allowEmptyArchive: true
         }
