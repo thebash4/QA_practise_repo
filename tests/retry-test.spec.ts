@@ -1,21 +1,15 @@
-import { test,  expect } from "@playwright/test";
+/**
+ * Optional retry demonstration for CI debugging practice.
+ *
+ * It is skipped unless RUN_FAILURE_DEMO=true and is excluded from every normal suite tag.
+ */
+import { expect, test } from '@playwright/test';
 
-test.describe('Retry demonstration', () => {
+test.describe('Retry demonstration', { tag: '@failure-demo' }, () => {
+  test.skip(process.env.RUN_FAILURE_DEMO !== 'true', 'Enable explicitly with RUN_FAILURE_DEMO=true.');
+  test.describe.configure({ retries: 1 });
 
-test.describe.configure({ retries: 1 });
-
-test('fails first attempt and passes on retry', async ({}, testInfo) => {
-
-  console.log('Attempt number:', testInfo.retry);
-
-  expect(testInfo.retry).toBe(1);
+  test('fails its first attempt and passes on retry', async ({}, testInfo) => {
+    expect(testInfo.retry, 'the exercise intentionally passes only on its retry').toBe(1);
+  });
 });
-
-});
-
-test.describe('normal',()=>{
-
-    test('always passes',async ({})=>{
-expect (1+1).toBe(2);
-    });
-})
